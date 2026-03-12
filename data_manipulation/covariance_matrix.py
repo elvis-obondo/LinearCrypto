@@ -1,6 +1,7 @@
 from log_returns import get_market_data
 import numpy as np
 
+
 correlation_list = []
 
 def main():
