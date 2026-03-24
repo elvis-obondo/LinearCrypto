@@ -13,40 +13,44 @@ if not SUPABASE_URL or not SUPABASE_KEY:
 supabase: Client = create_client(SUPABASE_URL,SUPABASE_KEY)
 
 market_data = []
-SYMBOLS = [
-    'BTC/USDC', 'ETH/USDC', 'DYDX/USDC', 'SOL/USDC', 'AVAX/USDC', 
-    'BNB/USDC', 'SUI/USDC', 'LDO/USDC', 'LINK/USDC', 'GMX/USDC', 
-    'XRP/USDC', 'APT/USDC', 'AAVE/USDC', 'COMP/USDC', 'TRX/USDC', 
-    'UNI/USDC', 'DOT/USDC', 'ADA/USDC', 'TON/USDC', 'PENDLE/USDC', 
-    'NEAR/USDC', 'PYTH/USDC', 'JUP/USDC', 'ONDO/USDC', 'ENA/USDC', 
-    'MNT/USDC', 'ALGO/USDC', 'HYPE/USDC', 'MORPHO/USDC', 'SKY/USDC', 
-    'ASTER/USDC', 'APEX/USDC', 'LIT/USDC'
-    ]
 
-for symbol in SYMBOLS:
-    try:
-        close_data = supabase.table("market_data")\
-        .select("close")\
-        .eq("symbol",symbol)\
-        .order("timestamp",desc=False)\
-        .execute()
-        if close_data:
-            # Loop in loop. so for every value in the market data (e.g. {'close': 0.10892}, {'close': 0.10892},) 
-            # Get the values in all of those dictionaries
-            market_data.append([value for d in close_data.data for value in d.values()])
-    except:
-      print('An exception occurred')
+SYMBOLS = [
+    'BTC/USDC:USDC', 'ETH/USDC:USDC', 'DYDX/USDC:USDC', 'SOL/USDC:USDC', 'AVAX/USDC:USDC', 
+    'BNB/USDC:USDC', 'SUI/USDC:USDC', 'LDO/USDC:USDC', 'LINK/USDC:USDC', 'GMX/USDC:USDC', 
+    'XRP/USDC:USDC', 'APT/USDC:USDC', 'AAVE/USDC:USDC', 'COMP/USDC:USDC', 'TRX/USDC:USDC', 
+    'UNI/USDC:USDC', 'DOT/USDC:USDC', 'ADA/USDC:USDC', 'TON/USDC:USDC', 'PENDLE/USDC:USDC', 
+    'NEAR/USDC:USDC', 'PYTH/USDC:USDC', 'JUP/USDC:USDC', 'ONDO/USDC:USDC', 'ENA/USDC:USDC', 
+    'MNT/USDC:USDC', 'ALGO/USDC:USDC', 'HYPE/USDC:USDC', 'MORPHO/USDC:USDC', 'SKY/USDC:USDC', 
+    'ASTER/USDC:USDC', 'APEX/USDC:USDC', 'LIT/USDC:USDC'
+]
+
+def get_market_data():
+
+    for symbol in SYMBOLS:
+        try:
+            close_data = supabase.table("market_data")\
+            .select("close")\
+            .eq("symbol",symbol)\
+            .order("timestamp",desc=False)\
+            .range(0,10000)\
+            .execute()
+            if close_data:
+                # Loop in loop. so for every value in the market data (e.g. {'close': 0.10892}, {'close': 0.10892},) 
+                # Get the values in all of those dictionaries
+                market_data.append([value for d in close_data.data for value in d.values()])
+                
+        except:
+            print('An exception occurred')
     
 
 
-
-#Gets the log returns of each list (coin) in the array of lists(market)
-log_returns = [np.diff(coin) for coin in market_data]
-print(len(market_data))
-for i in range(34):
-    print(market_data[i][0:5])
+    log_returns = [np.diff(l) for l in market_data]
+    combined_matrix = np.vstack(log_returns)
+    return combined_matrix
 
 
 
 
-
+if __name__ == "__main__":
+    get_market_data()
+    

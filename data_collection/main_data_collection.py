@@ -62,7 +62,7 @@ def fetch_and_upload(symbol):
     try:
         while since < current_time:
             # Hyperliquid fetch_ohlcv (limit is high, usually 5000)
-            candles = exchange.fetch_ohlcv(symbol, timeframe=TIMEFRAME, since=since,)
+            candles = exchange.fetch_ohlcv(symbol, timeframe=TIMEFRAME)
             
             if not candles:
                 break
