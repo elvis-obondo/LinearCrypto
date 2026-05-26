@@ -1,56 +1,90 @@
-from supabase import Client,create_client
+from supabase import Client, create_client
 import dotenv
 import os
 import numpy as np
+import pandas as pd
 
-env=dotenv.load_dotenv("././.env")
+env = dotenv.load_dotenv("././.env")
 SUPABASE_URL = os.getenv("SUPABASE_URL")
 SUPABASE_KEY = os.getenv("SUPABASE_KEY")
 
 if not SUPABASE_URL or not SUPABASE_KEY:
     raise ValueError("Invalid key and url")
 
-supabase: Client = create_client(SUPABASE_URL,SUPABASE_KEY)
-
-market_data = []
+supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 SYMBOLS = [
-    'BTC/USDC:USDC', 'ETH/USDC:USDC', 'DYDX/USDC:USDC', 'SOL/USDC:USDC', 'AVAX/USDC:USDC', 
-    'BNB/USDC:USDC', 'SUI/USDC:USDC', 'LDO/USDC:USDC', 'LINK/USDC:USDC', 'GMX/USDC:USDC', 
-    'XRP/USDC:USDC', 'APT/USDC:USDC', 'AAVE/USDC:USDC', 'COMP/USDC:USDC', 'TRX/USDC:USDC', 
-    'UNI/USDC:USDC', 'DOT/USDC:USDC', 'ADA/USDC:USDC', 'TON/USDC:USDC', 'PENDLE/USDC:USDC', 
-    'NEAR/USDC:USDC', 'PYTH/USDC:USDC', 'JUP/USDC:USDC', 'ONDO/USDC:USDC', 'ENA/USDC:USDC', 
-    'MNT/USDC:USDC', 'ALGO/USDC:USDC', 'HYPE/USDC:USDC', 'MORPHO/USDC:USDC', 'SKY/USDC:USDC', 
-    'ASTER/USDC:USDC', 'APEX/USDC:USDC', 'LIT/USDC:USDC'
+    'BTC/USDT', 'ETH/USDT', 'DYDX/USDT', 'SOL/USDT', 'AVAX/USDT',
+    'BNB/USDT', 'SUI/USDT', 'LDO/USDT', 'LINK/USDT', 'GMX/USDT',
+    'XRP/USDT', 'APT/USDT', 'AAVE/USDT', 'COMP/USDT', 'TRX/USDT',
+    'UNI/USDT', 'DOT/USDT', 'ADA/USDT', 'TON/USDT', 'PENDLE/USDT',
+    'NEAR/USDT', 'PYTH/USDT', 'JUP/USDT', 'ENA/USDT', 'ALGO/USDT',
+    'LIT/USDT',
 ]
 
-def get_market_data():
+# Clean ticker labels (strip the /USDC:USDC suffix for readability)
+TICKERS = [s.split('/')[0] for s in SYMBOLS]
 
-    for symbol in SYMBOLS:
-        try:
-            close_data = supabase.table("market_data")\
-            .select("close")\
-            .eq("symbol",symbol)\
-            .order("timestamp",desc=False)\
-            .range(0,10000)\
+BATCH_SIZE = 1000
+
+def fetch_all_closes(symbol: str) -> tuple:
+    timestamps, prices = [], []
+    start = 0
+    while True:
+        batch = supabase.table("market_data") \
+            .select("timestamp, close") \
+            .eq("symbol", symbol) \
+            .order("timestamp", desc=False) \
+            .range(start, start + BATCH_SIZE - 1) \
             .execute()
-            if close_data:
-                # Loop in loop. so for every value in the market data (e.g. {'close': 0.10892}, {'close': 0.10892},) 
-                # Get the values in all of those dictionaries
-                market_data.append([value for d in close_data.data for value in d.values()])
-                
-        except:
-            print('An exception occurred')
-    
+        if not batch.data:
+            break
+        timestamps.extend(d["timestamp"] for d in batch.data)
+        prices.extend(d["close"] for d in batch.data)
+        if len(batch.data) < BATCH_SIZE:
+            break
+        start += BATCH_SIZE
+    return timestamps, prices
+
+def get_market_data():
+    market_data = {}
+
+    for symbol, ticker in zip(SYMBOLS, TICKERS):
+        try:
+            timestamps, prices = fetch_all_closes(symbol)
+            if prices:
+                series = pd.Series(prices, index=pd.to_datetime(timestamps, unit='ms', utc=True))
+                log_returns = np.diff(np.log(series.values))
+                market_data[ticker] = log_returns
+
+        except Exception as e:
+            print(f"Error fetching {symbol}: {e}")
+
+    # Align all series to the same length (shortest available)
+    min_len = min(len(v) for v in market_data.values())
+    df = pd.DataFrame(
+        {ticker: series[-min_len:] for ticker, series in market_data.items()}
+    )
+
+    return df  # Shape: (T, 33) — rows=time, cols=tickers
 
 
-    log_returns = [np.diff(l) for l in market_data]
-    combined_matrix = np.vstack(log_returns)
-    return combined_matrix
-
-
+def get_price_levels():
+    """Returns DataFrame of log prices (not returns): shape (T, 33)."""
+    market_data = {}
+    for symbol, ticker in zip(SYMBOLS, TICKERS):
+        try:
+            timestamps, prices = fetch_all_closes(symbol)
+            if prices:
+                series = pd.Series(prices, index=pd.to_datetime(timestamps, unit='ms', utc=True))
+                market_data[ticker] = np.log(series.values)
+        except Exception as e:
+            print(f"Error fetching {symbol}: {e}")
+    min_len = min(len(v) for v in market_data.values())
+    return pd.DataFrame({t: s[-min_len:] for t, s in market_data.items()})
 
 
 if __name__ == "__main__":
-    get_market_data()
-    
+    df = get_market_data()
+    print(df.shape)
+    print(df.head())
