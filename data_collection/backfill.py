@@ -29,7 +29,9 @@ SYMBOLS = [
 
 def clear_database():
     print("Clearing existing data from Supabase...")
-    supabase.table("market_data").delete().neq("symbol", "").execute()
+    for symbol in SYMBOLS:
+        supabase.table("market_data").delete().eq("symbol", symbol).execute()
+        print(f"  Cleared {symbol}")
     print("Database cleared.")
 
 
